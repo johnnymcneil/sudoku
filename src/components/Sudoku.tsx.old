@@ -1,0 +1,203 @@
+import React, { useEffect, useState } from 'react';
+import type { Cell } from '../types/types';
+
+import './Sudoku.css';
+import { Matrix } from '~/classes';
+
+export const Sudoku: React.FC = () => {
+  const N: number = 9;
+  const K: number = 0;
+  const SRN: number = Math.floor(Math.sqrt(N));
+
+  const [matrix, setMatrix] = useState<Cell[][]>(
+    Array(N)
+      .fill(0)
+      .map(() => Array(N).fill({ num: 0 }))
+  );
+
+  const [boxes, setBoxes] = useState<Cell[][][]>();
+
+  const updateCell = (row: number, col: number, num: number) => {
+    setMatrix((prevMatrix) => {
+      return {
+        ...prevMatrix,
+        [row]: {
+          ...prevMatrix[row],
+          [col]: { num: num }
+        }
+      };
+    });
+  };
+
+  const getBox = (matrix: Cell[][], n: number) => {
+    const row = Math.floor((n - 1) / SRN);
+    const col = (n - 1) % SRN;
+    const box: Cell[][] = Array(SRN)
+      .fill(0)
+      .map(() => Array(SRN).fill(0));
+    for (let i = 0; i < SRN; i++) {
+      for (let j = 0; j < SRN; j++) {
+        box[i][j] = matrix[row * SRN + i][col * SRN + j];
+      }
+    }
+    return box;
+  };
+
+  const updateBoxes = (matrix: Cell[][]) => {
+    let boxes = [];
+    for (let box = 1; box <= N; box++) {
+      boxes[box] = getBox(matrix, box);
+    }
+    setBoxes(boxes);
+  };
+
+  const randomGen = (x: number) => {
+    return Math.floor(Math.random() * x + 1);
+  };
+
+  const unusedInBox = (rowStart: number, colStart: number, num: number) => {
+    console.log(`BOX (${rowStart}, ${colStart}) => ${num}?`);
+    for (let i = 0; i < SRN; i++) {
+      for (let j = 0; j < SRN; j++) {
+        const row = i + rowStart;
+        const col = j + colStart;
+        const cell = matrix[row][col];
+        console.log(`[${row}, ${col}]: ${cell.num}`);
+        if (cell.num === num) {
+          console.log(`(${row}, ${col}): ${num} is already present`);
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
+  const unusedInRow = (row: number, num: number) => {
+    console.log(`Checking row ${row}`);
+    for (let col = 0; col < N; col++) {
+      if (matrix[row][col].num === num) {
+        console.log(`[${row}, ${col}]: ${num} is already present`);
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const unusedInCol = (col: number, num: number) => {
+    console.log(`Checking col ${col}`);
+    for (let row = 0; row < N; row++) {
+      if (matrix[row][col].num === num) {
+        console.log(`[${row}, ${col}]: ${num} is already present`);
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const isSafe = (row: number, col: number, num: number) => {
+    return (
+      unusedInRow(row, num) &&
+      unusedInCol(col, num) &&
+      unusedInBox(row - (row % SRN), col - (col % SRN), num)
+    );
+  };
+
+  const fillBox = (row: number, col: number) => {
+    let num;
+    for (let i = 0; i < SRN; i++) {
+      for (let j = 0; j < SRN; j++) {
+        do {
+          num = randomGen(N);
+        } while (!isSafe(row + i, col + j, num));
+        updateCell(row + i, col + j, num);
+      }
+    }
+  };
+
+  const fillDiagonal = () => {
+    for (let i = 0; i < N; i += SRN) {
+      fillBox(i, i);
+    }
+  };
+
+  const fillRemaining = (row: number, col: number): boolean => {
+    // Check if we have reached the end of the matrix
+    if (row === N - 1 && col === N) {
+      return true;
+    }
+
+    // Move to next row if at end of current row
+    if (col === N) {
+      row++;
+      col = 0;
+    }
+
+    // Skip if the cell is already filled
+    if (matrix[row][col].num !== 0) {
+      return fillRemaining(row, col + 1);
+    }
+
+    // Attempt to fill current cell with valid value
+    for (let num = 1; num <= N; num++) {
+      if (isSafe(row, col, num)) {
+        updateCell(row, col, num);
+        // Try moving to next cell, returns true if already at end
+        if (fillRemaining(row, col + 1)) {
+          return true;
+        }
+        updateCell(row, col, 0);
+      }
+    }
+
+    // No valid value was found
+    return false;
+  };
+
+  const fillValues = () => {
+    fillDiagonal();
+    fillRemaining(0, SRN);
+  };
+
+  const removeKDigits = () => {
+    let count = K;
+    while (count !== 0) {
+      const randomRow = randomGen(N) - 1;
+      const randomCol = randomGen(N) - 1;
+      if (matrix[randomRow][randomCol].num !== 0) {
+        count--;
+        updateCell(randomRow, randomCol, 0);
+      }
+    }
+  };
+
+  const generate = () => {
+    fillValues();
+    removeKDigits();
+  };
+
+  useEffect(() => {
+    console.log('Inside useEffect');
+    generate();
+  }, []);
+
+  useEffect(() => {
+    updateBoxes(matrix);
+  }, [matrix]);
+
+  return (
+    <div className="sudoku">
+      {boxes &&
+        boxes.map((box, boxIdx) => (
+          <div className="box" key={boxIdx}>
+            {box.map((row, rowIdx) =>
+              row.map((cell, colIdx) => (
+                <div className="cell" key={`${rowIdx}-${colIdx}`}>
+                  {cell.num || ' '}
+                </div>
+              ))
+            )}
+          </div>
+        ))}
+    </div>
+  );
+};
